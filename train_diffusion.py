@@ -268,7 +268,8 @@ def validate(config, val_loader, model, test_sample, epoch):
             # forward
             imgs , class_labels = input['image'].cuda(), input['class_id'].cuda()
 
-            x_recon, x_gen, x0_det = SDAS_sample(imgs, class_labels, model, test_sample)
+            with autocast(enabled=config.trainer.use_fp16):
+                x_recon, x_gen, x0_det = SDAS_sample(imgs, class_labels, model, test_sample)
 
             for j in range(len(input['filename'])):
                 fileinfos.append(
