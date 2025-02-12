@@ -100,6 +100,14 @@ net:
     prev: backbone
     kwargs:
       init_bsn: 64
+    
+# If performing multi-class anomaly detection, please use:
+# - name: recon
+#    type: models.recon.SimpleReconstructionLayer
+#    prev: afs
+#    kwargs:
+#      num_residual_layers: 2
+# Additionally, we recommend training RealNet for more epochs (>500), as 100/300 epochs do not guarantee convergence for RealNet.
 
   - name: recon
     type: models.recon.ReconstructionLayer
