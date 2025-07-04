@@ -12,10 +12,10 @@ def build(cfg, training, distributed=True):
     else:
         cfg.update(cfg.get("test", {}))
 
-    type= cfg["type"]
+    type = cfg["type"]
     if type == "sdas":
         data_loader = build_sdas_dataloader(cfg, training, distributed)
-    elif type in ['mvtec','visa','mpdd','btad']:
+    elif type in ["mvtec", "visa", "mpdd", "btad"]:
         data_loader = build_realnet_dataloader(cfg, training, distributed)
     else:
         raise NotImplementedError(f"dataset type '{type}' is not supported")
