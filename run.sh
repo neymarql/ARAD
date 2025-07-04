@@ -1,4 +1,3 @@
-
 # To train the diffusion model, 4*48G GPU is required.
 
 python -m torch.distributed.launch --nproc_per_node=4  train_diffusion.py --dataset MVTec-AD
