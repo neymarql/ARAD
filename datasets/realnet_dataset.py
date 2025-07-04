@@ -17,6 +17,7 @@ import imgaug.augmenters as iaa
 import math
 from skimage import morphology
 from torch.utils.data.distributed import DistributedSampler
+from losses.clip_pc import clip_similarity
 
 
 def lerp_np(x,y,w):
@@ -58,7 +59,7 @@ def build_realnet_dataloader(cfg, training,distributed=True):
 
     dataset = RealNetDataset(
         image_reader,
-        cfg["meta_file"],
+        cfg.get("meta_file"),
         training,
         dataset=cfg['type'],
         resize=cfg['input_size'],
@@ -66,11 +67,14 @@ def build_realnet_dataloader(cfg, training,distributed=True):
         normalize_fn=normalize_fn,
         dtd_dir=cfg.get("dtd_dir", None),
         sdas_dir=cfg.get("sdas_dir", None),
-        dtd_transparency_range=cfg.get("dtd_transparency_range",[]),
+        dtd_transparency_range=cfg.get("dtd_transparency_range", []),
         sdas_transparency_range=cfg.get("sdas_transparency_range", []),
-        perlin_scale=cfg.get("perlin_scale",0),
-        min_perlin_scale=cfg.get('min_perlin_scale',0),
-        anomaly_types=cfg.get('anomaly_types',{}),
+        perlin_scale=cfg.get("perlin_scale", 0),
+        min_perlin_scale=cfg.get('min_perlin_scale', 0),
+        anomaly_types=cfg.get('anomaly_types', {}),
+        json_root=cfg.get('json_root'),
+        category=cfg.get('category'),
+        clip_w=cfg.get('clip_w', 'none'),
     )
 
     if distributed and training:
@@ -98,42 +102,64 @@ class RealNetDataset(BaseDataset):
         transform_fn,
         normalize_fn,
         dataset,
-        dtd_dir = None,
+        dtd_dir=None,
         sdas_dir=None,
-        dtd_transparency_range = [],
-        sdas_transparency_range=[],
+        dtd_transparency_range=None,
+        sdas_transparency_range=None,
         perlin_scale: int = 6,
         min_perlin_scale: int = 0,
         perlin_noise_threshold: float = 0.5,
-        anomaly_types={},
+        anomaly_types=None,
+        json_root=None,
+        category=None,
+        clip_w="none",
     ):
 
-        self.resize=resize
+        self.resize = resize
         self.image_reader = image_reader
         self.meta_file = meta_file
         self.training = training
         self.transform_fn = transform_fn
         self.normalize_fn = normalize_fn
-        self.anomaly_types = anomaly_types
-        self.dataset=dataset
+        self.anomaly_types = anomaly_types or {}
+        self.dataset = dataset
+        self.json_root = json_root
+        self.category = category
+        self.clip_w_mode = clip_w
+        self.offline = json_root is not None
 
         if training:
-            self.dtd_dir=dtd_dir
-            self.sdas=sdas_dir
+            self.dtd_dir = dtd_dir
+            self.sdas = sdas_dir
 
-            self.sdas_transparency_range=sdas_transparency_range
-            self.dtd_transparency_range=dtd_transparency_range
+            self.sdas_transparency_range = sdas_transparency_range or []
+            self.dtd_transparency_range = dtd_transparency_range or []
 
-            self.perlin_scale=perlin_scale
-            self.min_perlin_scale=min_perlin_scale
-            self.perlin_noise_threshold=perlin_noise_threshold
+            self.perlin_scale = perlin_scale
+            self.min_perlin_scale = min_perlin_scale
+            self.perlin_noise_threshold = perlin_noise_threshold
 
-        # construct metas
-        with open(meta_file, "r") as f_r:
-            self.metas = []
-            for line in f_r:
-                meta = json.loads(line)
-                self.metas.append(meta)
+        self.metas = []
+        if self.offline:
+            jdir = os.path.join(json_root, category)
+            for jp in sorted(os.listdir(jdir)):
+                with open(os.path.join(jdir, jp)) as f:
+                    data = json.load(f)
+                norm_p = data['image']
+                for v in data['variants']:
+                    self.metas.append({
+                        'filename': v['anomaly_image_path'],
+                        'maskname': v['anomaly_mask_path'],
+                        'gtname': norm_p,
+                        'prompt': v.get('description', ''),
+                        'label': 1,
+                        'clsname': category
+                    })
+        else:
+            with open(meta_file, "r") as f_r:
+                for line in f_r:
+                    meta = json.loads(line)
+                    self.metas.append(meta)
 
         if dtd_dir:
             self.dtd_file_list = glob(os.path.join(dtd_dir, '*/*'))
@@ -143,6 +169,16 @@ class RealNetDataset(BaseDataset):
 
     def __len__(self):
         return len(self.metas)
+
+    def _clip_weight(self, img_tensor, prompt):
+        if self.clip_w_mode == 'none':
+            return torch.tensor(1.0)
+        s = clip_similarity(img_tensor.unsqueeze(0), [prompt]).item()
+        if self.clip_w_mode == 'linear':
+            return torch.tensor(max(0.0, (s - 0.2) / 0.8))
+        if self.clip_w_mode == 'softmax':
+            return torch.tensor(torch.exp(torch.tensor(s) / 0.07).item())
+        return torch.tensor(1.0)
 
 
     def choice_anomaly_type(self):
@@ -162,6 +198,9 @@ class RealNetDataset(BaseDataset):
         label = meta["label"]
 
         image = self.image_reader(meta["filename"])
+        gt_img = None
+        if self.offline and meta.get("gtname"):
+            gt_img = self.image_reader(meta["gtname"])
 
         input.update(
             {
@@ -178,6 +217,8 @@ class RealNetDataset(BaseDataset):
             input["clsname"] = filename.split("/")[-4]
 
         image = Image.fromarray(image, "RGB")
+        if gt_img is not None:
+            gt_img = Image.fromarray(gt_img, "RGB")
 
         # read / generate mask
 
@@ -195,21 +236,26 @@ class RealNetDataset(BaseDataset):
 
         if self.transform_fn:
             image, mask = self.transform_fn(image, mask)
+            if gt_img is not None:
+                gt_img, _ = self.transform_fn(gt_img, mask)
 
         if self.training:
-            gt_image = copy.deepcopy(image)
+            if gt_img is None:
+                gt_image = copy.deepcopy(image)
+            else:
+                gt_image = gt_img
             gt_image = transforms.ToTensor()(gt_image)
             if self.normalize_fn:
                 gt_image = self.normalize_fn(gt_image)
-            input.update({'gt_image':gt_image})
+            input.update({'gt_image': gt_image})
 
-        image_anomaly_type =self.choice_anomaly_type()
-        assert image_anomaly_type in ['normal','dtd','sdas']
+        image_anomaly_type = self.choice_anomaly_type()
+        assert image_anomaly_type in ['normal','dtd','sdas'] or self.offline
 
-        if image_anomaly_type!='normal':
-            anomaly_image, anomaly_mask = self.generate_anomaly(np.array(image), self.dataset, input["clsname"],image_anomaly_type)
+        if not self.offline and image_anomaly_type != 'normal':
+            anomaly_image, anomaly_mask = self.generate_anomaly(np.array(image), self.dataset, input["clsname"], image_anomaly_type)
             image = Image.fromarray(anomaly_image, "RGB")
-            mask = Image.fromarray(np.array(anomaly_mask*255.0).astype(np.uint8), "L")
+            mask = Image.fromarray(np.array(anomaly_mask * 255.0).astype(np.uint8), "L")
 
         image = transforms.ToTensor()(image)
         mask = transforms.ToTensor()(mask)
@@ -217,7 +263,11 @@ class RealNetDataset(BaseDataset):
         if self.normalize_fn:
             image = self.normalize_fn(image)
 
-        input.update({"image": image, "mask": mask, "anomaly_type":image_anomaly_type})
+        if self.offline:
+            weight = self._clip_weight(image, meta.get('prompt', ''))
+            input['weight'] = weight
+
+        input.update({"image": image, "mask": mask, "anomaly_type": image_anomaly_type})
         return input
 
 
