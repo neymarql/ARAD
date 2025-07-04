@@ -83,7 +83,10 @@ def update_config(config,args):
 
     config.dataset.train.meta_file = config.dataset.train.meta_file.replace("{}", args.class_name)
     config.dataset.test.meta_file = config.dataset.test.meta_file.replace("{}", args.class_name)
-    config.dataset.train.sdas_dir= config.dataset.train.sdas_dir.replace("{}", args.class_name)
+    if hasattr(config.dataset.train, 'sdas_dir'):
+        config.dataset.train.sdas_dir = config.dataset.train.sdas_dir.replace("{}", args.class_name)
+    if hasattr(config.dataset, 'category'):
+        config.dataset.category = config.dataset.category.replace("{}", args.class_name)
     return config
 
 
@@ -236,14 +239,16 @@ def train_one_epoch(
         curr_step = start_iter + i
 
         # measure data loading time
-        outputs = model(input,train=True)
+        outputs = model(input, train=True)
 
         loss = []
         for name, criterion_loss in criterion.items():
             weight = criterion_loss.weight
             loss.append(weight * criterion_loss(outputs))
 
-        loss=torch.sum(torch.stack(loss))
+        loss = torch.sum(torch.stack(loss))
+        if 'weight' in input:
+            loss = loss * input['weight'].to(loss.device)
 
         reduced_loss = loss.clone()
         dist.all_reduce(reduced_loss)
