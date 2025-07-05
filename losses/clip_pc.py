@@ -1,13 +1,30 @@
 # -*- coding: utf-8 -*-
 import os
+import types
+import sys
+import importlib.machinery
 import torch
 import torchvision.transforms.functional as TF
 from PIL import Image
 
-# Avoid importing TensorFlow within transformers as the project does not
-# depend on it and some environments provide a minimal or incompatible
-# TensorFlow stub which leads to AttributeError during runtime.
-os.environ.setdefault("TRANSFORMERS_NO_TF_IMPORT", "1")
+# Prevent transformers from importing TensorFlow. Some environments ship with
+# a minimal or incompatible TensorFlow stub which breaks the runtime when
+# transformers attempts to inspect it.  Setting the environment variable and
+# providing our own lightweight stub avoids any TensorFlow interaction.
+os.environ.setdefault("TRANSFORMERS_NO_TF", "1")
+
+tf_stub = types.ModuleType("tensorflow")
+
+class _DummyTensor:
+    pass
+
+class _DummyTensorShape:
+    pass
+
+tf_stub.Tensor = _DummyTensor
+tf_stub.TensorShape = _DummyTensorShape
+tf_stub.__spec__ = importlib.machinery.ModuleSpec("tensorflow", loader=None)
+sys.modules.setdefault("tensorflow", tf_stub)
 
 from transformers import CLIPProcessor, CLIPModel
 
