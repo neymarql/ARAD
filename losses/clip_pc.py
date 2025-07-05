@@ -1,7 +1,14 @@
 # -*- coding: utf-8 -*-
+import os
 import torch
 import torchvision.transforms.functional as TF
 from PIL import Image
+
+# Avoid importing TensorFlow within transformers as the project does not
+# depend on it and some environments provide a minimal or incompatible
+# TensorFlow stub which leads to AttributeError during runtime.
+os.environ.setdefault("TRANSFORMERS_NO_TF_IMPORT", "1")
+
 from transformers import CLIPProcessor, CLIPModel
 
 _proc = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
