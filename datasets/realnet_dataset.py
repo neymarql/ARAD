@@ -75,6 +75,8 @@ def build_realnet_dataloader(cfg, training,distributed=True):
         json_root=cfg.get('json_root'),
         category=cfg.get('category'),
         clip_w=cfg.get('clip_w', 'none'),
+        sample_mode=cfg.get('sample_mode', 'pair'),
+        normal_ratio=cfg.get('normal_ratio', 0.0),
     )
 
     if distributed and training:
@@ -113,6 +115,8 @@ class RealNetDataset(BaseDataset):
         json_root=None,
         category=None,
         clip_w="none",
+        sample_mode: str = "pair",
+        normal_ratio: float = 0.0,
     ):
 
         self.resize = resize
@@ -127,34 +131,74 @@ class RealNetDataset(BaseDataset):
         self.category = category
         self.clip_w_mode = clip_w
         self.offline = json_root is not None
+        self.sample_mode = sample_mode
+        self.normal_ratio = normal_ratio
 
-        if training:
+        if training and not self.offline:
             self.dtd_dir = dtd_dir
             self.sdas = sdas_dir
-
             self.sdas_transparency_range = sdas_transparency_range or []
             self.dtd_transparency_range = dtd_transparency_range or []
+        else:
+            self.dtd_dir = None
+            self.sdas = None
+            self.sdas_transparency_range = []
+            self.dtd_transparency_range = []
 
-            self.perlin_scale = perlin_scale
-            self.min_perlin_scale = min_perlin_scale
-            self.perlin_noise_threshold = perlin_noise_threshold
+        self.perlin_scale = perlin_scale
+        self.min_perlin_scale = min_perlin_scale
+        self.perlin_noise_threshold = perlin_noise_threshold
 
         self.metas = []
         if self.offline:
+            self.normal_metas = []
+            self.anomaly_metas = []
+            self.groups = []
             jdir = os.path.join(json_root, category)
             for jp in sorted(os.listdir(jdir)):
                 with open(os.path.join(jdir, jp)) as f:
                     data = json.load(f)
                 norm_p = data['image']
+                normal_meta = {
+                    'filename': norm_p,
+                    'label': 0,
+                    'gtname': norm_p,
+                    'prompt': '',
+                    'clsname': category,
+                    'anomaly_type': 'normal'
+                }
+                self.normal_metas.append(normal_meta)
+                group = [normal_meta]
                 for v in data['variants']:
-                    self.metas.append({
+                    atype = v.get('anomaly_type', os.path.basename(os.path.dirname(v['anomaly_image_path'])))
+                    anomaly_meta = {
                         'filename': v['anomaly_image_path'],
                         'maskname': v['anomaly_mask_path'],
                         'gtname': norm_p,
                         'prompt': v.get('description', ''),
                         'label': 1,
-                        'clsname': category
-                    })
+                        'clsname': category,
+                        'anomaly_type': atype
+                    }
+                    self.anomaly_metas.append(anomaly_meta)
+                    group.append(anomaly_meta)
+                self.groups.append(group)
+
+            if self.sample_mode == "pair":
+                random.shuffle(self.groups)
+                for g in self.groups:
+                    self.metas.extend(g)
+            else:  # mix
+                self.metas = self.anomaly_metas[:]
+                if self.normal_ratio > 0:
+                    num_normals = int(len(self.metas) * self.normal_ratio)
+                    if num_normals > 0:
+                        if num_normals <= len(self.normal_metas):
+                            selected = random.sample(self.normal_metas, num_normals)
+                        else:
+                            selected = random.choices(self.normal_metas, k=num_normals)
+                        self.metas.extend(selected)
+                random.shuffle(self.metas)
         else:
             with open(meta_file, "r") as f_r:
                 for line in f_r:
@@ -249,8 +293,11 @@ class RealNetDataset(BaseDataset):
                 gt_image = self.normalize_fn(gt_image)
             input.update({'gt_image': gt_image})
 
-        image_anomaly_type = self.choice_anomaly_type()
-        assert image_anomaly_type in ['normal','dtd','sdas'] or self.offline
+        if self.offline:
+            image_anomaly_type = meta.get('anomaly_type', 'offline')
+        else:
+            image_anomaly_type = self.choice_anomaly_type()
+            assert image_anomaly_type in ['normal','dtd','sdas']
 
         if not self.offline and image_anomaly_type != 'normal':
             anomaly_image, anomaly_mask = self.generate_anomaly(np.array(image), self.dataset, input["clsname"], image_anomaly_type)
