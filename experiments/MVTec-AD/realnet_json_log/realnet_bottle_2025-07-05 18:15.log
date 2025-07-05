@@ -1,15 +1,12 @@
-[2025-07-05 16:33:24,302][train_realnet.py][line: 124][    INFO] args: Namespace(config='experiments/MVTec-AD/realnet.yaml', dataset='MVTec-AD', local_rank=-1, class_name='bottle')
-[2025-07-05 16:33:24,304][train_realnet.py][line: 125][    INFO] config: {'checkpoints_path': 'experiments/MVTec-AD/realnet_json_ckpts',
+[2025-07-05 18:15:41,548][train_realnet.py][line: 124][    INFO] args: Namespace(config='experiments/MVTec-AD/realnet.yaml', dataset='MVTec-AD', local_rank=-1, class_name='bottle')
+[2025-07-05 18:15:41,552][train_realnet.py][line: 125][    INFO] config: {'checkpoints_path': 'experiments/MVTec-AD/realnet_json_ckpts',
  'criterion': [{'kwargs': {'weight': 1.0},
-                'name': 'FeatureMSELoss',
-                'type': 'FeatureMSELoss'},
+                'name': 'SegmentCrossEntropyLoss',
+                'type': 'SegmentCrossEntropyLoss'},
                {'kwargs': {'weight': 1.0},
-                'name': 'ImageMSELoss',
-                'type': 'ImageMSELoss'},
-               {'kwargs': {'alpha': [0.2, 0.8], 'gamma': 2, 'weight': 1.0},
-                'name': 'SegmentFocalLoss',
-                'type': 'SegmentFocalLoss'}],
- 'dataset': {'batch_size': 16,
+                'name': 'FeatureMSELoss',
+                'type': 'FeatureMSELoss'}],
+ 'dataset': {'batch_size': 8,
              'category': 'bottle',
              'clip_linear_min': 0.05,
              'clip_softmax_temp': 0.07,
@@ -86,16 +83,16 @@
              'print_freq_step': 30,
              'val_freq_epoch': 1},
  'version': 'v1.0.0'}
-[2025-07-05 16:33:24,305][train_realnet.py][line: 126][    INFO] class name is : bottle
-[2025-07-05 16:33:30,589][ misc_helper.py][line:  54][    INFO] ************* model summary *************
-[2025-07-05 16:33:30,590][ misc_helper.py][line:  56][    INFO] backbone: 66834240 param
-[2025-07-05 16:33:30,590][ misc_helper.py][line:  56][    INFO] afs: 1536 param
-[2025-07-05 16:33:30,592][ misc_helper.py][line:  56][    INFO] recon: 518236160 param
-[2025-07-05 16:33:30,595][ misc_helper.py][line:  59][    INFO] ************* model summary *************
-[2025-07-05 16:33:30,595][ misc_helper.py][line:  60][    INFO] total: 585071936 param
-[2025-07-05 16:33:30,595][ misc_helper.py][line:  61][    INFO] frozen: 66835776 param
-[2025-07-05 16:33:30,595][ misc_helper.py][line:  62][    INFO] trainable: 518236160 param
-[2025-07-05 16:33:30,595][ misc_helper.py][line:  63][    INFO] ************* model summary *************
-[2025-07-05 16:41:02,570][train_realnet.py][line: 157][    INFO] layers: ['backbone', 'afs', 'recon']
-[2025-07-05 16:41:02,571][train_realnet.py][line: 158][    INFO] frozen layers: ['backbone', 'afs']
-[2025-07-05 16:41:02,571][train_realnet.py][line: 159][    INFO] active layers: ['recon']
+[2025-07-05 18:15:41,553][train_realnet.py][line: 126][    INFO] class name is : bottle
+[2025-07-05 18:15:48,535][ misc_helper.py][line:  54][    INFO] ************* model summary *************
+[2025-07-05 18:15:48,536][ misc_helper.py][line:  56][    INFO] backbone: 66834240 param
+[2025-07-05 18:15:48,537][ misc_helper.py][line:  56][    INFO] afs: 1536 param
+[2025-07-05 18:15:48,539][ misc_helper.py][line:  56][    INFO] recon: 518236160 param
+[2025-07-05 18:15:48,542][ misc_helper.py][line:  59][    INFO] ************* model summary *************
+[2025-07-05 18:15:48,542][ misc_helper.py][line:  60][    INFO] total: 585071936 param
+[2025-07-05 18:15:48,542][ misc_helper.py][line:  61][    INFO] frozen: 66835776 param
+[2025-07-05 18:15:48,543][ misc_helper.py][line:  62][    INFO] trainable: 518236160 param
+[2025-07-05 18:15:48,543][ misc_helper.py][line:  63][    INFO] ************* model summary *************
+[2025-07-05 18:19:38,531][train_realnet.py][line: 157][    INFO] layers: ['backbone', 'afs', 'recon']
+[2025-07-05 18:19:38,532][train_realnet.py][line: 158][    INFO] frozen layers: ['backbone', 'afs']
+[2025-07-05 18:19:38,532][train_realnet.py][line: 159][    INFO] active layers: ['recon']

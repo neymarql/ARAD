@@ -22,7 +22,7 @@ dataset:
   input_size: [512,512]
   pixel_mean: [0.485, 0.456, 0.406]
   pixel_std: [0.229, 0.224, 0.225]
-  batch_size: 16
+  batch_size: 8
   workers: 0
   clip_w: softmax
   clip_linear_min: 0.05
@@ -56,12 +56,22 @@ net:
     frozen: True
     kwargs:
       backbone: wide_resnet50_2
+
   - name: afs
     type: models.afs.AFS
     frozen: True
     prev: backbone
     kwargs:
       init_bsn: 64
+    
+# If performing multi-class anomaly detection, please use:
+# - name: recon
+#    type: models.recon.SimpleReconstructionLayer
+#    prev: afs
+#    kwargs:
+#      num_residual_layers: 2
+# Additionally, we recommend training RealNet for more epochs (>500), as 100/300 epochs do not guarantee convergence for RealNet.
+
   - name: recon
     type: models.recon.ReconstructionLayer
     prev: afs
@@ -71,22 +81,25 @@ net:
       channel_mult: [1,2,4]
       attention_mult: [2,4]
 
+  - name: rrs
+    type: models.rrs.RRS
+    prev: recon
+    kwargs:
+      modes: [max,mean]
+      mode_numbers: [256,256] # dimensions of RRS, max=256,mean=256
+      num_residual_layers: 2
+      stop_grad: False
+
 criterion:
+  - name: SegmentCrossEntropyLoss
+    type: SegmentCrossEntropyLoss
+    kwargs:
+      weight: 1.0
   - name: FeatureMSELoss
     type: FeatureMSELoss
     kwargs:
       weight: 1.0
-  - name: ImageMSELoss
-    type: ImageMSELoss
-    kwargs:
-      weight: 1.0
-  - name: SegmentFocalLoss
-    type: SegmentFocalLoss
-    kwargs:
-      weight: 1.0
-      alpha: [0.2,0.8]
-      gamma: 2
-
+  
 trainer:
   optimizer:
     type: Adam
@@ -100,3 +113,12 @@ trainer:
 saver:
   checkpoints_dir: realnet_json_ckpts
   log_dir: realnet_json_log
+
+evaluator:
+  key_metric: mean
+  metrics:
+    auc:
+      - name: image
+        kwargs:
+          avgpool_size: [16, 16]
+      - name: pixel
