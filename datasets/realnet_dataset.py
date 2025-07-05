@@ -261,12 +261,10 @@ class RealNetDataset(BaseDataset):
         # read image
         filename = meta["filename"]
         label = meta["label"]
-
         image = self.image_reader(meta["filename"])
         gt_img = None
         if self.offline and meta.get("gtname"):
             gt_img = self.image_reader(meta["gtname"])
-
         input.update(
             {
                 "filename": filename,
@@ -275,7 +273,6 @@ class RealNetDataset(BaseDataset):
                 "label": label,
             }
         )
-
         if meta.get("clsname", None):
             input["clsname"] = meta["clsname"]
         else:
@@ -313,7 +310,6 @@ class RealNetDataset(BaseDataset):
             if self.normalize_fn:
                 gt_image = self.normalize_fn(gt_image)
             input.update({'gt_image': gt_image})
-
         if self.offline:
             image_anomaly_type = meta.get('anomaly_type', 'offline')
         else:

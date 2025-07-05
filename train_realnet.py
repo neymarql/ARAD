@@ -335,5 +335,4 @@ def validate(config,val_loader, model,epoch,class_name):
 
 
 if __name__ == "__main__":
-    mp.set_start_method("spawn", force=True)
     main()
