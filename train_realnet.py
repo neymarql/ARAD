@@ -24,7 +24,6 @@ parser = argparse.ArgumentParser(description="train RealNet")
 parser.add_argument("--config", default="experiments/{}/realnet.yaml")
 parser.add_argument("--dataset", default="MVTec-AD",choices=['MVTec-AD','VisA','MPDD','BTAD'])
 parser.add_argument("--local_rank", default=-1, type=int)
-
 parser.add_argument("--class_name", default="bottle",choices=[
         # mvtec-ad
         "bottle",

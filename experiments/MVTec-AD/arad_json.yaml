@@ -4,7 +4,7 @@ random_seed: 100
 dataset:
   type: mvtec
   json_root: /home/qianlong/mnt_link/hartad/data/descriptions_qwen2.5_32b_mvtecad
-  category: {}
+  category: "{}"
   train:
     meta_file: data/MVTec-AD/samples/train_{}.json
     hflip: False
