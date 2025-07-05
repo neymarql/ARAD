@@ -88,6 +88,8 @@ def build_realnet_dataloader(cfg, training,distributed=True):
         json_root=cfg.get('json_root'),
         category=cfg.get('category'),
         clip_w=cfg.get('clip_w', 'none'),
+        clip_linear_min=cfg.get('clip_linear_min', 0.0),
+        clip_softmax_temp=cfg.get('clip_softmax_temp', 0.07),
         sample_mode=cfg.get('sample_mode', 'pair'),
         normal_ratio=cfg.get('normal_ratio', 0.0),
     )
@@ -128,6 +130,8 @@ class RealNetDataset(BaseDataset):
         json_root=None,
         category=None,
         clip_w="none",
+        clip_linear_min: float = 0.0,
+        clip_softmax_temp: float = 0.07,
         sample_mode: str = "pair",
         normal_ratio: float = 0.0,
     ):
@@ -232,9 +236,11 @@ class RealNetDataset(BaseDataset):
             return torch.tensor(1.0)
         s = clip_similarity(img_tensor.unsqueeze(0), [prompt]).item()
         if self.clip_w_mode == 'linear':
-            return torch.tensor(max(0.0, (s - 0.2) / 0.8))
+            w = max(self.clip_linear_min, (s - 0.2) / 0.8)
+            return torch.tensor(w)
         if self.clip_w_mode == 'softmax':
-            return torch.tensor(torch.exp(torch.tensor(s) / 0.07).item())
+            t = torch.exp(torch.tensor(s) / self.clip_softmax_temp)
+            return torch.tensor(t.item())
         return torch.tensor(1.0)
 
 
