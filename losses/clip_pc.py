@@ -14,8 +14,15 @@ from PIL import Image
 os.environ.setdefault("TRANSFORMERS_NO_TF", "1")
 
 tf_stub = types.ModuleType("tensorflow")
-tf_stub.Tensor = object
-tf_stub.TensorShape = object
+
+class _DummyTensor:
+    pass
+
+class _DummyTensorShape:
+    pass
+
+tf_stub.Tensor = _DummyTensor
+tf_stub.TensorShape = _DummyTensorShape
 tf_stub.__spec__ = importlib.machinery.ModuleSpec("tensorflow", loader=None)
 sys.modules.setdefault("tensorflow", tf_stub)
 
