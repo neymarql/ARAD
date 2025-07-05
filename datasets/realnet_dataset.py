@@ -148,6 +148,8 @@ class RealNetDataset(BaseDataset):
         self.category = category
         self.clip_w_mode = clip_w
         self.offline = json_root is not None
+        self.clip_linear_min = clip_linear_min
+        self.clip_softmax_temp = clip_softmax_temp
         self.sample_mode = sample_mode
         self.normal_ratio = normal_ratio
 

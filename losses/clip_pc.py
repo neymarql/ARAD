@@ -29,11 +29,28 @@ sys.modules.setdefault("tensorflow", tf_stub)
 from transformers import CLIPProcessor, CLIPModel
 
 _proc = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
-_model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32").cuda().eval()
+_model = None
+
+
+def _get_model():
+    """Lazily create the CLIP model on the first call."""
+    global _model
+    if _model is None:
+        _model = (
+            CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
+            .cuda()
+            .eval()
+        )
+    return _model
 
 @torch.no_grad()
 def clip_similarity(img_BCHW, prompt_list):
     pil_imgs = [TF.to_pil_image(img) if torch.is_tensor(img) else Image.open(img) for img in img_BCHW]
-    ipt = _proc(text=prompt_list, images=pil_imgs, return_tensors="pt", padding=True).to("cuda")
-    out = _model(**ipt)
+    ipt = _proc(text=prompt_list,
+                images=pil_imgs,
+                return_tensors="pt",
+                padding=True,
+                truncation=True).to("cuda")
+    model = _get_model()
+    out = model(**ipt)
     return torch.cosine_similarity(out.image_embeds, out.text_embeds)

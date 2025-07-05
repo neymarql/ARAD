@@ -17,7 +17,9 @@ from utils.dist_helper import setup_distributed
 from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.distributed as dist
 from utils.categories import Categories
-
+import torch.multiprocessing as mp
+import warnings
+warnings.filterwarnings('ignore')
 
 warnings.filterwarnings('ignore')
 parser = argparse.ArgumentParser(description="train RealNet")
@@ -161,6 +163,12 @@ def main():
     ]
 
     optimizer = get_optimizer(parameters, config.trainer.optimizer)
+
+    # ensure evaluator config exists
+    if not hasattr(config, "evaluator"):
+        config.evaluator = EasyDict()
+    config.evaluator.setdefault("key_metric", "mean")
+    config.evaluator.setdefault("metrics", {"auc": []})
 
     key_metric = config.evaluator["key_metric"]
 
@@ -327,4 +335,5 @@ def validate(config,val_loader, model,epoch,class_name):
 
 
 if __name__ == "__main__":
+    mp.set_start_method("spawn", force=True)
     main()
