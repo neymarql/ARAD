@@ -260,7 +260,11 @@ def train_one_epoch(
         reduced_loss = loss.clone()
         dist.all_reduce(reduced_loss)
         reduced_loss = reduced_loss / world_size
+        reduced_loss = reduced_loss.mean()
         losses.update(reduced_loss.item())
+
+        # ensure the tensor fed to backward is a scalar
+        loss = loss.mean()
 
         optimizer.zero_grad()
         loss.backward()
