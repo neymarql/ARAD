@@ -153,22 +153,25 @@ class RealNetDataset(BaseDataset):
         if self.offline:
             self.normal_metas = []
             self.anomaly_metas = []
+            self.groups = []
             jdir = os.path.join(json_root, category)
             for jp in sorted(os.listdir(jdir)):
                 with open(os.path.join(jdir, jp)) as f:
                     data = json.load(f)
                 norm_p = data['image']
-                self.normal_metas.append({
+                normal_meta = {
                     'filename': norm_p,
                     'label': 0,
                     'gtname': norm_p,
                     'prompt': '',
                     'clsname': category,
                     'anomaly_type': 'normal'
-                })
+                }
+                self.normal_metas.append(normal_meta)
+                group = [normal_meta]
                 for v in data['variants']:
                     atype = v.get('anomaly_type', os.path.basename(os.path.dirname(v['anomaly_image_path'])))
-                    self.anomaly_metas.append({
+                    anomaly_meta = {
                         'filename': v['anomaly_image_path'],
                         'maskname': v['anomaly_mask_path'],
                         'gtname': norm_p,
@@ -176,18 +179,26 @@ class RealNetDataset(BaseDataset):
                         'label': 1,
                         'clsname': category,
                         'anomaly_type': atype
-                    })
+                    }
+                    self.anomaly_metas.append(anomaly_meta)
+                    group.append(anomaly_meta)
+                self.groups.append(group)
 
-            self.metas = self.anomaly_metas[:]
-            if self.sample_mode == "mix" and self.normal_ratio > 0:
-                num_normals = int(len(self.metas) * self.normal_ratio)
-                if num_normals > 0:
-                    if num_normals <= len(self.normal_metas):
-                        selected = random.sample(self.normal_metas, num_normals)
-                    else:
-                        selected = random.choices(self.normal_metas, k=num_normals)
-                    self.metas.extend(selected)
-            random.shuffle(self.metas)
+            if self.sample_mode == "pair":
+                random.shuffle(self.groups)
+                for g in self.groups:
+                    self.metas.extend(g)
+            else:  # mix
+                self.metas = self.anomaly_metas[:]
+                if self.normal_ratio > 0:
+                    num_normals = int(len(self.metas) * self.normal_ratio)
+                    if num_normals > 0:
+                        if num_normals <= len(self.normal_metas):
+                            selected = random.sample(self.normal_metas, num_normals)
+                        else:
+                            selected = random.choices(self.normal_metas, k=num_normals)
+                        self.metas.extend(selected)
+                random.shuffle(self.metas)
         else:
             with open(meta_file, "r") as f_r:
                 for line in f_r:
